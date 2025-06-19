@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Invoice = require('@/models/appModels/Invoice');
+const Client = require('@/models/appModels/Client');
 const { increaseBySettingKey } = require('@/middlewares/settings');
 
 const create = async (req, res) => {
@@ -32,6 +33,25 @@ const create = async (req, res) => {
       });
     }
 
+    // Check if client exists
+    const clientExists = await Client.findOne({ _id: client, removed: false });
+    if (!clientExists) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Client not found',
+      });
+    }
+
+    // Validate admin
+    if (!req.admin || !req.admin._id) {
+      return res.status(401).json({
+        success: false,
+        result: null,
+        message: 'Authentication required',
+      });
+    }
+
     // Calculate item totals
     const processedItems = items.map(item => {
       const quantity = Number(item.quantity) || 1;
@@ -54,9 +74,21 @@ const create = async (req, res) => {
 
     // Get next invoice number
     const currentYear = new Date().getFullYear();
-    const { settingValue: lastNumber } = await increaseBySettingKey({
-      settingKey: 'last_invoice_number',
-    });
+    let lastNumber = 1;
+    
+    try {
+      const { settingValue } = await increaseBySettingKey({
+        settingKey: 'last_invoice_number',
+      });
+      lastNumber = settingValue;
+    } catch (settingError) {
+      console.warn('Could not get invoice number from settings, using default:', settingError.message);
+      // Try to get the highest existing invoice number
+      const lastInvoice = await Invoice.findOne({ year: currentYear })
+        .sort({ number: -1 })
+        .select('number');
+      lastNumber = lastInvoice ? lastInvoice.number + 1 : 1;
+    }
 
     // Create invoice data
     const invoiceData = {
@@ -73,6 +105,8 @@ const create = async (req, res) => {
       total,
       date: otherData.date || new Date(),
       expiredDate: otherData.expiredDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status: otherData.status || 'draft',
+      paymentStatus: otherData.paymentStatus || 'unpaid',
     };
 
     // Create and save invoice

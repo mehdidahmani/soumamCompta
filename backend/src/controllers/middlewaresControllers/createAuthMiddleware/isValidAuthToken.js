@@ -26,9 +26,20 @@ const isValidAuthToken = async (req, res, next) => {
       });
     }
 
-    req.admin = admin;
+    // Ensure admin object has the required properties
+    req.admin = {
+      _id: admin._id,
+      id: admin._id,
+      name: admin.name,
+      surname: admin.surname,
+      email: admin.email,
+      role: admin.role,
+      photo: admin.photo,
+    };
+    
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error);
     return res.status(401).json({
       success: false,
       result: null,
