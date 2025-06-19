@@ -1,39 +1,35 @@
 const mongoose = require('mongoose');
 
 const settingSchema = new mongoose.Schema({
-  removed: {
-    type: Boolean,
-    default: false,
-  },
-  enabled: {
-    type: Boolean,
-    default: true,
-  },
-
   settingCategory: {
     type: String,
     required: true,
-    lowercase: true,
   },
   settingKey: {
     type: String,
-    lowercase: true,
     required: true,
+    unique: true,
   },
   settingValue: {
     type: mongoose.Schema.Types.Mixed,
+    required: true,
   },
   valueType: {
     type: String,
-    default: 'String',
-  },
-  isPrivate: {
-    type: Boolean,
-    default: false,
+    enum: ['string', 'number', 'boolean', 'array', 'object', 'date', 'image'],
+    default: 'string',
   },
   isCoreSetting: {
     type: Boolean,
-    default: false,
+    default: true,
+  },
+  created: {
+    type: Date,
+    default: Date.now,
+  },
+  updated: {
+    type: Date,
+    default: Date.now,
   },
 });
 

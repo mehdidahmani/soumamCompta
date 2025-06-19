@@ -1,39 +1,77 @@
 require('module-alias/register');
+const express = require('express');
+const cors = require('cors');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
-const { globSync } = require('glob');
 const path = require('path');
 
-// Make sure we are running node 7.6+
-const [major, minor] = process.versions.node.split('.').map(parseFloat);
-if (major < 20) {
-  console.log('Please upgrade your node.js version at least 20 or greater. 👌\n ');
-  process.exit();
-}
+// Load environment variables
+require('dotenv').config();
 
-// import environmental variables from our variables.env file
-require('dotenv').config({ path: '.env' });
-require('dotenv').config({ path: '.env.local' });
+const app = express();
 
-mongoose.connect(process.env.DATABASE);
+// Middleware
+app.use(compression());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Serve static files
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
-mongoose.connection.on('error', (error) => {
-  console.log(
-    `1. 🔥 Common Error caused issue → : check your .env file first and add your mongodb url`
-  );
-  console.error(`2. 🚫 Error → : ${error.message}`);
+// Database connection
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.DATABASE || 'mongodb://localhost:27017/idurar-erp-crm', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error('Database connection error:', error);
+    process.exit(1);
+  }
+};
+
+// Connect to database
+connectDB();
+
+// Import routes
+const coreRoutes = require('./routes/coreRoutes/coreApi');
+const appRoutes = require('./routes/appRoutes/appApi');
+
+// Routes
+app.use('/api', coreRoutes);
+app.use('/api', appRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    result: null,
+    message: err.message || 'Internal Server Error',
+  });
 });
 
-const modelsFiles = globSync('./src/models/**/*.js');
-
-for (const filePath of modelsFiles) {
-  require(path.resolve(filePath));
-}
-
-// Start our app!
-const app = require('./app');
-app.set('port', process.env.PORT || 8888);
-const server = app.listen(app.get('port'), () => {
-  console.log(`Express running → On PORT : ${server.address().port}`);
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    result: null,
+    message: 'API endpoint not found',
+  });
 });
+
+const PORT = process.env.PORT || 8888;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+module.exports = app;

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const schema = new mongoose.Schema({
+const productSchema = new mongoose.Schema({
   removed: {
     type: Boolean,
     default: false,
@@ -9,29 +9,66 @@ const schema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
-
-  name: {
+  itemName: {
     type: String,
+    trim: true,
     required: true,
-  },
-  reference: {
-    type: String,
-    unique: true,
-    required: true,
-  },
-  unit_price: {
-    type: Number,
-    required: true,
-  },
-  quantity: {
-    type: Number,
-    default: 0,
   },
   description: {
     type: String,
+    trim: true,
   },
-  createdBy: { type: mongoose.Schema.ObjectId, ref: 'Admin' },
-  updatedBy: { type: mongoose.Schema.ObjectId, ref: 'Admin' },
+  category: {
+    type: String,
+    trim: true,
+  },
+  price: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  currency: {
+    type: String,
+    uppercase: true,
+    default: 'USD',
+  },
+  taxRate: {
+    type: Number,
+    default: 0,
+  },
+  unit: {
+    type: String,
+    trim: true,
+    default: 'unit',
+  },
+  sku: {
+    type: String,
+    trim: true,
+  },
+  barcode: {
+    type: String,
+    trim: true,
+  },
+  images: [
+    {
+      type: String,
+      trim: true,
+    },
+  ],
+  inventory: {
+    quantity: {
+      type: Number,
+      default: 0,
+    },
+    minQuantity: {
+      type: Number,
+      default: 0,
+    },
+    trackQuantity: {
+      type: Boolean,
+      default: false,
+    },
+  },
   created: {
     type: Date,
     default: Date.now,
@@ -42,6 +79,4 @@ const schema = new mongoose.Schema({
   },
 });
 
-schema.plugin(require('mongoose-autopopulate'));
-
-module.exports = mongoose.model('Product', schema);
+module.exports = mongoose.model('Product', productSchema);

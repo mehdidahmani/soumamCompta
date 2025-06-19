@@ -1,27 +1,27 @@
-const Invoice = require('@/models/appModels/Invoice');
+const Client = require('@/models/appModels/Client');
 
 const remove = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const invoice = await Invoice.findOneAndUpdate(
+    const client = await Client.findOneAndUpdate(
       { _id: id, removed: false },
       { removed: true, updated: new Date() },
       { new: true }
     );
 
-    if (!invoice) {
+    if (!client) {
       return res.status(404).json({
         success: false,
         result: null,
-        message: 'Invoice not found',
+        message: 'Client not found',
       });
     }
 
     return res.status(200).json({
       success: true,
-      result: invoice,
-      message: 'Invoice deleted successfully',
+      result: client,
+      message: 'Client deleted successfully',
     });
   } catch (error) {
     return res.status(500).json({

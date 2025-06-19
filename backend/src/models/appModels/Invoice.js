@@ -5,8 +5,11 @@ const invoiceSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-
-  createdBy: { type: mongoose.Schema.ObjectId, ref: 'Admin', required: true },
+  createdBy: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Admin',
+    required: true,
+  },
   number: {
     type: Number,
     required: true,
@@ -15,18 +18,19 @@ const invoiceSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  content: String,
   recurring: {
     type: String,
-    enum: ['daily', 'weekly', 'monthly', 'annually', 'quarter'],
+    default: 'never',
   },
   date: {
     type: Date,
     required: true,
+    default: Date.now,
   },
   expiredDate: {
     type: Date,
     required: true,
+    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
   },
   client: {
     type: mongoose.Schema.ObjectId,
@@ -34,32 +38,12 @@ const invoiceSchema = new mongoose.Schema({
     required: true,
     autopopulate: true,
   },
-  converted: {
-    from: {
-      type: String,
-      enum: ['quote', 'offer'],
-    },
-    offer: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Offer',
-    },
-    quote: {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Quote',
-    },
-  },
   items: [
     {
-      // modify it to reference to the products in the Product model
-      product: {
-        type: mongoose.Schema.ObjectId,
-        ref: 'Product',
-        autopopulate: true,
+      itemName: {
+        type: String,
+        required: true,
       },
-      // itemName: {
-      //   type: String,
-      //   required: true,
-      // },
       description: {
         type: String,
       },
@@ -72,22 +56,6 @@ const invoiceSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
-      // discount: {
-      //   type: Number,
-      //   default: 0,
-      // },
-      // taxRate: {
-      //   type: Number,
-      //   default: 0,
-      // },
-      // subTotal: {
-      //   type: Number,
-      //   default: 0,
-      // },
-      // taxTotal: {
-      //   type: Number,
-      //   default: 0,
-      // },
       total: {
         type: Number,
         required: true,
@@ -110,71 +78,66 @@ const invoiceSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  currency: {
-    type: String,
-    default: 'NA',
-    uppercase: true,
-    required: true,
+  discount: {
+    type: Number,
+    default: 0,
   },
   credit: {
     type: Number,
     default: 0,
   },
-  discount: {
-    type: Number,
-    default: 0,
+  currency: {
+    type: String,
+    uppercase: true,
+    default: 'USD',
   },
-  payment: [
-    {
-      type: mongoose.Schema.ObjectId,
-      ref: 'Payment',
-    },
-  ],
   paymentStatus: {
     type: String,
     default: 'unpaid',
-    enum: ['unpaid', 'paid', 'partially'],
   },
-  isOverdue: {
-    type: Boolean,
-    default: false,
+  paidAmount: {
+    type: Number,
+    default: 0,
   },
-  approved: {
-    type: Boolean,
-    default: false,
+  status: {
+    type: String,
+    enum: ['draft', 'pending', 'sent', 'received', 'refund', 'cancelled', 'on hold'],
+    default: 'draft',
   },
   notes: {
     type: String,
   },
-  status: {
-    type: String,
-    enum: ['draft', 'pending', 'sent', 'refunded', 'cancelled', 'on hold'],
-    default: 'draft',
-  },
   pdf: {
     type: String,
-  },
-  files: [
-    {
-      id: String,
-      name: String,
-      path: String,
-      description: String,
-      isPublic: {
-        type: Boolean,
-        default: true,
-      },
-    },
-  ],
-  updated: {
-    type: Date,
-    default: Date.now,
   },
   created: {
     type: Date,
     default: Date.now,
   },
+  updated: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
+// Add plugin for autopopulate
 invoiceSchema.plugin(require('mongoose-autopopulate'));
+
+// Pre-save middleware to calculate totals
+invoiceSchema.pre('save', function (next) {
+  // Calculate subTotal
+  this.subTotal = this.items.reduce((sum, item) => sum + item.total, 0);
+  
+  // Calculate tax
+  this.taxTotal = (this.subTotal * this.taxRate) / 100;
+  
+  // Calculate total
+  this.total = this.subTotal + this.taxTotal - this.discount;
+  
+  // Update timestamp
+  this.updated = Date.now();
+  
+  next();
+});
+
 module.exports = mongoose.model('Invoice', invoiceSchema);

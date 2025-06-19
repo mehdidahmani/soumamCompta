@@ -1,4 +1,4 @@
-const Invoice = require('@/models/appModels/Invoice');
+const Client = require('@/models/appModels/Client');
 
 const paginatedList = async (req, res) => {
   try {
@@ -9,25 +9,24 @@ const paginatedList = async (req, res) => {
     const { sort = 'desc', sortBy = 'created' } = req.query;
     const sortOrder = sort === 'desc' ? -1 : 1;
 
-    const invoices = await Invoice.find({ removed: false })
-      .populate('client')
+    const clients = await Client.find({ removed: false })
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
       .limit(limit);
 
-    const total = await Invoice.countDocuments({ removed: false });
+    const total = await Client.countDocuments({ removed: false });
     const pages = Math.ceil(total / limit);
 
     return res.status(200).json({
       success: true,
-      result: invoices,
+      result: clients,
       pagination: {
         page,
         pages,
-        count: invoices.length,
+        count: clients.length,
         total,
       },
-      message: 'Invoices retrieved successfully',
+      message: 'Clients retrieved successfully',
     });
   } catch (error) {
     return res.status(500).json({

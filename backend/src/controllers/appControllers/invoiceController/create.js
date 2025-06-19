@@ -1,74 +1,101 @@
 const mongoose = require('mongoose');
-
-const Model = mongoose.model('Invoice');
-
-const { calculate } = require('@/helpers');
+const Invoice = require('@/models/appModels/Invoice');
 const { increaseBySettingKey } = require('@/middlewares/settings');
-const schema = require('./schemaValidate');
 
 const create = async (req, res) => {
-  let body = req.body;
+  try {
+    const { items = [], client, taxRate = 0, discount = 0, ...otherData } = req.body;
 
-  const { error, value } = schema.validate(body);
-  if (error) {
-    const { details } = error;
-    return res.status(400).json({
+    // Validate required fields
+    if (!client) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Client is required',
+      });
+    }
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'At least one item is required',
+      });
+    }
+
+    // Validate client ID
+    if (!mongoose.Types.ObjectId.isValid(client)) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Invalid client ID',
+      });
+    }
+
+    // Calculate item totals
+    const processedItems = items.map(item => {
+      const quantity = Number(item.quantity) || 1;
+      const price = Number(item.price) || 0;
+      const total = quantity * price;
+
+      return {
+        itemName: item.itemName || '',
+        description: item.description || '',
+        quantity,
+        price,
+        total,
+      };
+    });
+
+    // Calculate totals
+    const subTotal = processedItems.reduce((sum, item) => sum + item.total, 0);
+    const taxTotal = (subTotal * Number(taxRate)) / 100;
+    const total = subTotal + taxTotal - Number(discount);
+
+    // Get next invoice number
+    const currentYear = new Date().getFullYear();
+    const { settingValue: lastNumber } = await increaseBySettingKey({
+      settingKey: 'last_invoice_number',
+    });
+
+    // Create invoice data
+    const invoiceData = {
+      ...otherData,
+      createdBy: req.admin._id,
+      client: client,
+      items: processedItems,
+      number: lastNumber,
+      year: currentYear,
+      taxRate: Number(taxRate),
+      discount: Number(discount),
+      subTotal,
+      taxTotal,
+      total,
+      date: otherData.date || new Date(),
+      expiredDate: otherData.expiredDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+
+    // Create and save invoice
+    const invoice = new Invoice(invoiceData);
+    const savedInvoice = await invoice.save();
+
+    // Populate client data
+    await savedInvoice.populate('client');
+
+    return res.status(200).json({
+      success: true,
+      result: savedInvoice,
+      message: 'Invoice created successfully',
+    });
+
+  } catch (error) {
+    console.error('Invoice creation error:', error);
+    return res.status(500).json({
       success: false,
       result: null,
-      message: details[0]?.message,
+      message: error.message || 'Error creating invoice',
     });
   }
-
-  const { items = [], taxRate = 0, discount = 0 } = value;
-
-  // default
-  let subTotal = 0;
-  let taxTotal = 0;
-  let total = 0;
-
-  //Calculate the items array with subTotal, total, taxTotal
-  items.map((item) => {
-    let total = calculate.multiply(item['quantity'], item['price']);
-    //sub total
-    subTotal = calculate.add(subTotal, total);
-    //item total
-    item['total'] = total;
-  });
-  taxTotal = calculate.multiply(subTotal, taxRate / 100);
-  total = calculate.add(subTotal, taxTotal);
-
-  body['subTotal'] = subTotal;
-  body['taxTotal'] = taxTotal;
-  body['total'] = total;
-  body['items'] = items;
-
-  let paymentStatus = calculate.sub(total, discount) === 0 ? 'paid' : 'unpaid';
-
-  body['paymentStatus'] = paymentStatus;
-  body['createdBy'] = req.admin._id;
-
-  // Creating a new document in the collection
-  const result = await new Model(body).save();
-  const fileId = 'invoice-' + result._id + '.pdf';
-  const updateResult = await Model.findOneAndUpdate(
-    { _id: result._id },
-    { pdf: fileId },
-    {
-      new: true,
-    }
-  ).exec();
-  // Returning successfull response
-
-  increaseBySettingKey({
-    settingKey: 'last_invoice_number',
-  });
-
-  // Returning successfull response
-  return res.status(200).json({
-    success: true,
-    result: updateResult,
-    message: 'Invoice created successfully',
-  });
 };
 
 module.exports = create;

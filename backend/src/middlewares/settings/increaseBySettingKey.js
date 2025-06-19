@@ -1,33 +1,29 @@
-const mongoose = require('mongoose');
-
-const Model = mongoose.model('Setting');
+const Setting = require('@/models/coreModels/Setting');
 
 const increaseBySettingKey = async ({ settingKey }) => {
   try {
-    if (!settingKey) {
-      return null;
-    }
-
-    const result = await Model.findOneAndUpdate(
+    const result = await Setting.findOneAndUpdate(
       { settingKey },
-      {
-        $inc: { settingValue: 1 },
-      },
-      {
-        new: true, // return the new result instead of the old one
-        runValidators: true,
-      }
-    ).exec();
+      { $inc: { settingValue: 1 } },
+      { new: true, upsert: true }
+    );
 
-    // If no results found, return document not found
     if (!result) {
-      return null;
-    } else {
-      // Return success resposne
-      return result;
+      // Create new setting if it doesn't exist
+      const newSetting = new Setting({
+        settingKey,
+        settingValue: 1,
+        settingCategory: 'finance_settings',
+        valueType: 'number'
+      });
+      await newSetting.save();
+      return { settingValue: 1 };
     }
-  } catch {
-    return null;
+
+    return { settingValue: result.settingValue };
+  } catch (error) {
+    console.error('Error increasing setting:', error);
+    throw error;
   }
 };
 

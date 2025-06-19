@@ -1,59 +1,79 @@
-const Joi = require('joi');
+const jwt = require('jsonwebtoken');
+const Admin = require('@/models/coreModels/Admin');
 
-const mongoose = require('mongoose');
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-const authUser = require('./authUser');
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Email and password are required',
+      });
+    }
 
-const login = async (req, res, { userModel }) => {
-  const UserPasswordModel = mongoose.model(userModel + 'Password');
-  const UserModel = mongoose.model(userModel);
-  const { email, password } = req.body;
+    const admin = await Admin.findOne({ email: email.toLowerCase(), removed: false });
 
-  // validate
-  const objectSchema = Joi.object({
-    email: Joi.string()
-      .email({ tlds: { allow: true } })
-      .required(),
-    password: Joi.string().required(),
-  });
+    if (!admin || !admin.enabled) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Invalid credentials',
+      });
+    }
 
-  const { error, value } = objectSchema.validate({ email, password });
-  if (error) {
-    return res.status(409).json({
+    const isPasswordValid = await admin.correctPassword(password, admin.password);
+
+    if (!isPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        result: null,
+        message: 'Invalid credentials',
+      });
+    }
+
+    const token = jwt.sign(
+      { id: admin._id },
+      process.env.JWT_SECRET || 'your_jwt_secret',
+      { expiresIn: '7d' }
+    );
+
+    // Update login status
+    await Admin.findByIdAndUpdate(admin._id, { 
+      isLoggedIn: true,
+      updated: new Date()
+    });
+
+    // Set cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    const adminData = {
+      _id: admin._id,
+      name: admin.name,
+      surname: admin.surname,
+      email: admin.email,
+      role: admin.role,
+      photo: admin.photo,
+    };
+
+    return res.status(200).json({
+      success: true,
+      result: adminData,
+      message: 'Login successful',
+    });
+  } catch (error) {
+    return res.status(500).json({
       success: false,
       result: null,
-      error: error,
-      message: 'Invalid/Missing credentials.',
-      errorMessage: error.message,
+      message: error.message,
     });
   }
-
-  const user = await UserModel.findOne({ email: email, removed: false });
-
-  // console.log(user);
-  if (!user)
-    return res.status(404).json({
-      success: false,
-      result: null,
-      message: 'No account with this email has been registered.',
-    });
-
-  const databasePassword = await UserPasswordModel.findOne({ user: user._id, removed: false });
-
-  if (!user.enabled)
-    return res.status(409).json({
-      success: false,
-      result: null,
-      message: 'Your account is disabled, contact your account adminstrator',
-    });
-
-  //  authUser if your has correct password
-  authUser(req, res, {
-    user,
-    databasePassword,
-    password,
-    UserPasswordModel,
-  });
 };
 
 module.exports = login;

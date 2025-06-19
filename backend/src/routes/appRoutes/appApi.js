@@ -1,33 +1,39 @@
 const express = require('express');
-const { catchErrors } = require('@/handlers/errorHandlers');
 const router = express.Router();
 
-const appControllers = require('@/controllers/appControllers');
-const { routesList } = require('@/models/utils');
+// Import controllers
+const invoiceController = require('@/controllers/appControllers/invoiceController');
+const clientController = require('@/controllers/appControllers/clientController');
+const productController = require('@/controllers/appControllers/productController');
 
-const routerApp = (entity, controller) => {
-  router.route(`/${entity}/create`).post(catchErrors(controller['create']));
-  router.route(`/${entity}/read/:id`).get(catchErrors(controller['read']));
-  router.route(`/${entity}/update/:id`).patch(catchErrors(controller['update']));
-  router.route(`/${entity}/delete/:id`).delete(catchErrors(controller['delete']));
-  router.route(`/${entity}/search`).get(catchErrors(controller['search']));
-  router.route(`/${entity}/list`).get(catchErrors(controller['list']));
-  router.route(`/${entity}/listAll`).get(catchErrors(controller['listAll']));
-  router.route(`/${entity}/filter`).get(catchErrors(controller['filter']));
-  router.route(`/${entity}/summary`).get(catchErrors(controller['summary']));
+// Import middleware
+const { isValidAuthToken } = require('@/controllers/middlewaresControllers/createAuthMiddleware');
 
-  if (entity === 'invoice' || entity === 'quote' || entity === 'payment') {
-    router.route(`/${entity}/mail`).post(catchErrors(controller['mail']));
-  }
+// Apply auth middleware to all routes
+router.use(isValidAuthToken);
 
-  if (entity === 'quote') {
-    router.route(`/${entity}/convert/:id`).get(catchErrors(controller['convert']));
-  }
-};
+// Invoice routes
+router.route('/invoice/create').post(invoiceController.create);
+router.route('/invoice/read/:id').get(invoiceController.read);
+router.route('/invoice/update/:id').patch(invoiceController.update);
+router.route('/invoice/delete/:id').delete(invoiceController.remove);
+router.route('/invoice/list').get(invoiceController.paginatedList);
+router.route('/invoice/summary').get(invoiceController.summary);
 
-routesList.forEach(({ entity, controllerName }) => {
-  const controller = appControllers[controllerName];
-  routerApp(entity, controller);
-});
+// Client routes
+router.route('/client/create').post(clientController.create);
+router.route('/client/read/:id').get(clientController.read);
+router.route('/client/update/:id').patch(clientController.update);
+router.route('/client/delete/:id').delete(clientController.remove);
+router.route('/client/list').get(clientController.paginatedList);
+router.route('/client/summary').get(clientController.summary);
+
+// Product routes
+router.route('/product/create').post(productController.create);
+router.route('/product/read/:id').get(productController.read);
+router.route('/product/update/:id').patch(productController.update);
+router.route('/product/delete/:id').delete(productController.remove);
+router.route('/product/list').get(productController.paginatedList);
+router.route('/product/summary').get(productController.summary);
 
 module.exports = router;

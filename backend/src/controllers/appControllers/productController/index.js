@@ -1,14 +1,15 @@
-const mongoose = require('mongoose');
-const createCRUDController = require('@/controllers/middlewaresControllers/createCRUDController');
-
+const create = require('./create');
+const read = require('./read');
+const update = require('./update');
+const remove = require('./remove');
 const summary = require('./summary');
+const paginatedList = require('./paginatedList');
 
-function modelController() {
-  const Model = mongoose.model('Product'); 
-  const methods = createCRUDController('Product'); 
-
-  methods.summary = (req, res) => summary(Model, req, res); 
-  return methods;
-}
-
-module.exports = modelController();
+module.exports = {
+  create,
+  read,
+  update,
+  remove,
+  summary,
+  paginatedList,
+};
